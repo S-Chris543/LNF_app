@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101317">
+<title>Velocista BLE</title>
+<style>
+:root{
+  --bg:#101317; --panel:#1a1f26; --panel2:#222831; --line:#2c333d;
+  --text:#e8ebef; --dim:#8b94a1; --acc:#4f8cff; --ok:#3ddc97; --warn:#ffb020; --bad:#ff4d4d;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+main{max-width:560px;margin:0 auto;padding:12px 16px 120px}
+header{display:flex;align-items:center;gap:10px;margin:4px 0 12px}
+header h1{font-size:18px;margin:0;flex:1;letter-spacing:.2px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--bad);flex:none}
+.dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+button{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);
+  border-radius:10px;padding:10px 14px;font-weight:600;touch-action:manipulation}
+button:disabled{opacity:.35}
+button.primario{background:var(--acc);border-color:var(--acc);color:#fff}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);margin:0 0 10px;font-weight:700}
+.fila{display:flex;align-items:center;gap:8px}
+.chip{display:inline-block;padding:4px 10px;border-radius:999px;background:var(--panel2);
+  border:1px solid var(--line);font-weight:700;font-size:13px}
+.chip.carrera{background:var(--ok);color:#06210f;border-color:var(--ok)}
+.chip.go{background:var(--warn);color:#2a1a00;border-color:var(--warn)}
+.chip.perdida{background:var(--bad);color:#fff;border-color:var(--bad)}
+.aviso{background:#3a1d1d;border:1px solid #6b2b2b;color:#ffd0d0;border-radius:12px;padding:10px 12px;margin-bottom:12px;display:none}
+
+/* Posición */
+.riel{position:relative;height:34px;margin:6px 4px 2px}
+.riel::before{content:"";position:absolute;left:0;right:0;top:15px;height:4px;border-radius:2px;background:var(--line)}
+.riel .centro{position:absolute;left:50%;top:6px;width:2px;height:22px;background:var(--dim);transform:translateX(-1px)}
+.riel .marca{position:absolute;top:5px;width:24px;height:24px;border-radius:50%;background:var(--ok);
+  transform:translateX(-12px);transition:left .05s linear;box-shadow:0 0 10px rgba(61,220,151,.5)}
+.riel .marca.perdida{background:var(--bad);box-shadow:0 0 10px rgba(255,77,77,.6)}
+.lados{display:flex;justify-content:space-between;color:var(--dim);font-size:11px;margin:0 2px}
+.posnum{font-variant-numeric:tabular-nums;font-size:28px;font-weight:800;text-align:center;margin-top:2px}
+.sens{display:grid;grid-template-columns:repeat(16,1fr);gap:3px;height:54px;align-items:end;margin-top:10px}
+.sens div{background:var(--acc);border-radius:3px 3px 0 0;min-height:2px;transition:height .1s}
+.sens div.alto{background:var(--warn)}
+canvas{width:100%;height:110px;display:block;margin-top:10px;border-radius:8px;background:var(--panel2)}
+.mini{display:flex;justify-content:space-between;color:var(--dim);font-size:12px;font-variant-numeric:tabular-nums;margin-top:6px}
+
+/* Parámetros */
+.param{padding:8px 0;border-top:1px solid var(--line)}
+.param:first-of-type{border-top:none}
+.param .cab{display:flex;align-items:center;gap:8px}
+.param .nom{font-weight:700;flex:1}
+.param .nom small{color:var(--dim);font-weight:500;margin-left:6px}
+.param input[type=number]{width:96px;font:inherit;font-weight:700;text-align:center;color:var(--text);
+  background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 6px;-moz-appearance:textfield}
+.param input[type=number]::-webkit-inner-spin-button,.param input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.param input[type=number].pend{border-color:var(--warn)}
+.param .pm{width:46px;height:42px;padding:0;font-size:20px;user-select:none;-webkit-user-select:none}
+.param .pm:active{background:var(--acc);border-color:var(--acc)}
+
+/* Pestañas */
+.tabs{display:flex;gap:6px;margin:0 0 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
+.tabs button{flex:1;border:none;background:none;padding:10px;border-radius:9px;color:var(--dim)}
+.tabs button.sel{background:var(--panel2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+.pestana{display:none}
+.pestana.sel{display:block}
+
+/* LEDs */
+.leds{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:4px 0 14px}
+.led{display:flex;flex-direction:column;align-items:center;gap:6px;border:none;background:none;padding:6px 0}
+.led .foco{width:46px;height:46px;border-radius:50%;background:var(--panel2);border:2px solid var(--line);transition:.12s}
+.led.on .foco{background:var(--ok);border-color:var(--ok);box-shadow:0 0 14px rgba(61,220,151,.7)}
+.led span{font-size:12px;color:var(--dim);font-weight:600}
+.led:disabled{opacity:.5}
+.modoLed{color:var(--dim);font-size:13px;margin-top:10px}
+.seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{flex:1;border:none;background:none;padding:8px}
+.seg button.sel{background:var(--acc);color:#fff}
+details summary{cursor:pointer;color:var(--dim);font-weight:700;padding:4px 0}
+.acciones{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#log{font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;color:var(--dim);white-space:pre-wrap;
+  max-height:180px;overflow:auto;margin:8px 0 0}
+.cmd{display:flex;gap:8px;margin-top:8px}
+.cmd input{flex:1;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px}
+
+/* Barra inferior */
+.barra{position:fixed;left:0;right:0;bottom:0;background:rgba(16,19,23,.94);backdrop-filter:blur(8px);
+  border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.barra .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:1fr 1.4fr;gap:10px}
+#btnGo{position:relative;overflow:hidden;background:#123d2a;border-color:#1f6b49;height:58px;font-size:17px}
+#btnGo .relleno{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--ok);opacity:.45}
+#btnGo span{position:relative}
+#btnStop{background:var(--bad);border-color:var(--bad);color:#fff;height:58px;font-size:20px;font-weight:800;letter-spacing:1px}
+#btnStop:active{filter:brightness(.8)}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="dot" id="dot"></span>
+    <h1>Velocista</h1>
+    <button class="primario" id="btnCon">Conectar</button>
+  </header>
+
+  <div class="aviso" id="aviso"></div>
+
+  <section class="card">
+    <div class="fila" style="justify-content:space-between">
+      <span class="chip" id="chipEstado">—</span>
+      <span class="chip" id="chipLinea">sin datos</span>
+      <button id="btnArm" style="display:none">Armar</button>
+    </div>
+    <div class="riel"><div class="centro"></div><div class="marca" id="marca" style="left:50%"></div></div>
+    <div class="lados"><span>◀ izquierda</span><span>derecha ▶</span></div>
+    <div class="posnum" id="posNum">—</div>
+    <div class="sens" id="sens"></div>
+    <canvas id="graf"></canvas>
+    <div class="mini"><span id="txtU">u —</span><span id="txtPwm">izq — · der —</span></div>
+  </section>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="control" class="sel">Control</button>
+    <button data-tab="leds">LEDs</button>
+  </nav>
+
+  <div class="pestana sel" id="tab-control">
+  <section class="card">
+    <h2>Control</h2>
+    <div id="params"></div>
+    <div class="param">
+      <div class="cab"><span class="nom">Línea</span></div>
+      <div class="seg" id="segLinea">
+        <button data-v="1">Negra / fondo blanco</button>
+        <button data-v="0">Blanca / fondo negro</button>
+      </div>
+    </div>
+    <details>
+      <summary>Avanzado</summary>
+      <div id="paramsAv"></div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>Robot detenido</h2>
+    <div class="acciones">
+      <button id="btnGuardar">Guardar en flash</button>
+      <button id="btnCal">Calibrar</button>
+      <button id="btnVer">Ver estado</button>
+      <button id="btnLimpiar">Limpiar log</button>
+    </div>
+    <div id="log"></div>
+    <div class="cmd"><input id="txtCmd" placeholder="comando (ej. kp 90)" autocomplete="off"><button id="btnCmd">Enviar</button></div>
+  </section>
+  </div>
+
+  <div class="pestana" id="tab-leds">
+  <section class="card">
+    <h2>LEDs del robot</h2>
+    <div class="leds" id="leds"></div>
+    <div class="acciones">
+      <button id="ledAuto">Automático</button>
+      <button id="ledSec">Secuencia</button>
+      <button id="ledTodos">Todos</button>
+      <button id="ledApagar">Apagar</button>
+    </div>
+    <div class="modoLed" id="modoLed">Modo: —</div>
+    <p class="modoLed">Toca un LED para encenderlo o apagarlo (pasa a modo manual).
+      <b>Automático</b> regresa los LEDs a mostrar el estado del robot.</p>
+  </section>
+  </div>
+</main>
+
+<div class="barra"><div class="in">
+  <button id="btnGo" disabled><div class="relleno" id="goRelleno"></div><span>Mantén para GO</span></button>
+  <button id="btnStop">STOP</button>
+</div></div>
+
+<script>
+const NUS = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const RX  = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const TX  = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+const ESTADOS = ['ARMANDO','CALIBRANDO','ESPERA','READY','TURBINA','CARRERA','FRENANDO'];
+const ORDEN_P = ['kp','kd','ki','kv','vel','vmax','linea','edfgo','edfesp','freno','rev','trev','cal'];
+
+const PARAMS = [
+  {k:'kp',   n:'Kp',  min:0, max:300,  step:0.5},
+  {k:'kd',   n:'Kd',  min:0, max:3000, step:5},
+  {k:'ki',   n:'Ki',  min:0, max:500,  step:1},
+  {k:'kv',   n:'Kv',  min:0, max:1,    step:0.01, s:'freno en curva'},
+  {k:'vel',  n:'Vel', min:0, max:1023, step:5,    s:'crucero'},
+  {k:'vmax', n:'Vmax',min:0, max:1023, step:5,    s:'tope por rueda'},
+  {k:'edfgo',n:'Turbina', min:1000, max:2000, step:5, s:'µs en carrera'},
+];
+const PARAMS_AV = [
+  {k:'edfesp',n:'Turbina READY', min:1000, max:2000, step:5, s:'µs'},
+  {k:'freno', n:'Freno',          min:0,    max:1023, step:5},
+  {k:'rev',   n:'Reversa al STOP', min:0,  max:300,  step:1,  s:'PWM (51 = 5 %)'},
+  {k:'trev',  n:'Tiempo reversa',  min:0,  max:1000, step:10, s:'ms (0 = solo freno)'},
+];
+
+const $ = id => document.getElementById(id);
+const enc = new TextEncoder(), dec = new TextDecoder();
+let dev = null, rxc = null, conectado = false, estado = -1, calOk = false;
+let bufTxt = '';
+const ctrl = {};           // k -> {inp, editando, pend, def}
+const hist = [];           // {t, pos, linea}
+
+// ---------- UI de parámetros: − / + (mantener = repetir) o escribir el número ----------
+function crearParam(def, cont){
+  const d = document.createElement('div');
+  d.className = 'param';
+  d.innerHTML = `<div class="cab"><span class="nom">${def.n}${def.s ? `<small>${def.s}</small>` : ''}</span>
+    <button class="pm" aria-label="menos">−</button>
+    <input type="number" inputmode="decimal" step="${def.step}" min="${def.min}" max="${def.max}">
+    <button class="pm" aria-label="más">+</button></div>`;
+  cont.appendChild(d);
+  const [bMenos, bMas] = d.querySelectorAll('.pm');
+  const inp = d.querySelector('input');
+  const c = {inp, editando:false, pend:null, def, timer:null};
+  ctrl[def.k] = c;
+  const ajustar = v => {
+    v = Math.min(def.max, Math.max(def.min, +v));
+    v = Math.round(v / def.step) * def.step;
+    return +v.toFixed(3);
+  };
+  // Muestra el valor y lo manda (los toques seguidos se juntan en un solo envío)
+  const fijar = (v, espera) => {
+    if (isNaN(+v)) return;
+    v = ajustar(v);
+    inp.value = v;
+    c.pend = v; inp.classList.add('pend');
+    clearTimeout(c.timer);
+    c.timer = setTimeout(() => enviarParam(def.k, v), espera);
+  };
+  // − / +: un toque = un paso; mantener = repite cada vez más rápido
+  const repetir = (btn, dir) => {
+    let t1 = null, t2 = null, n = 0;
+    const paso = () => fijar((+inp.value || 0) + dir * def.step, 250);
+    const soltar = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if (btn.disabled) return;
+      paso(); n = 0;
+      t1 = setTimeout(() => { t2 = setInterval(() => { paso(); if (++n === 15){ clearInterval(t2); t2 = setInterval(paso, 40); } }, 110); }, 400);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, soltar));
+  };
+  repetir(bMenos, -1);
+  repetir(bMas, +1);
+  inp.addEventListener('focus', () => { c.editando = true; inp.select(); });
+  inp.addEventListener('blur', () => { c.editando = false; });
+  inp.addEventListener('change', () => fijar(inp.value, 0));
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+}
+PARAMS.forEach(p => crearParam(p, $('params')));
+PARAMS_AV.forEach(p => crearParam(p, $('paramsAv')));
+
+document.querySelectorAll('#segLinea button').forEach(b =>
+  b.addEventListener('click', () => { marcarLinea(+b.dataset.v); enviar('linea ' + b.dataset.v); }));
+function marcarLinea(v){
+  document.querySelectorAll('#segLinea button').forEach(b => b.classList.toggle('sel', +b.dataset.v === v));
+}
+
+const sens = $('sens');
+for (let i = 0; i < 16; i++) sens.appendChild(document.createElement('div'));
+
+// ---------- Envío (cola: una operación GATT a la vez) ----------
+const cola = [];
+let enviando = false;
+function enviar(cmd, urgente = false, clave = null){
+  if (!rxc) return;
+  if (clave){ const i = cola.findIndex(e => e.clave === clave); if (i >= 0) cola.splice(i, 1); }
+  const e = {d: enc.encode(cmd + '\n'), clave};
+  urgente ? cola.unshift(e) : cola.push(e);
+  bomba();
+}
+function enviarParam(k, v){ enviar(`${k} ${v}`, false, k); }
+async function bomba(){
+  if (enviando) return;
+  enviando = true;
+  try {
+    while (cola.length && rxc){
+      const {d} = cola.shift();
+      for (let i = 0; i < d.length; i += 20){
+        const p = d.slice(i, i + 20);
+        if (rxc.writeValueWithoutResponse) await rxc.writeValueWithoutResponse(p);
+        else await rxc.writeValue(p);
+      }
+    }
+  } catch (e){ log('[error de envío] ' + e.message); }
+  enviando = false;
+}
+
+// ---------- Conexión ----------
+async function conectar(){
+  if (!navigator.bluetooth){
+    mostrarAviso('Este navegador no tiene Web Bluetooth. Usa Chrome en Android y abre la página desde https://');
+    return;
+  }
+  try {
+    dev = await navigator.bluetooth.requestDevice({filters:[{namePrefix:'VELOCISTA'}], optionalServices:[NUS]});
+    dev.addEventListener('gattserverdisconnected', desconectado);
+    $('btnCon').textContent = 'Conectando…';
+    const gatt = await dev.gatt.connect();
+    const srv = await gatt.getPrimaryService(NUS);
+    rxc = await srv.getCharacteristic(RX);
+    const txc = await srv.getCharacteristic(TX);
+    await txc.startNotifications();
+    txc.addEventListener('characteristicvaluechanged', e => recibir(e.target.value));
+    conectado = true;
+    actualizarConexion();
+    enviar('param');
+    pedirPantallaEncendida();
+  } catch (e){
+    log('[conexión] ' + e.message);
+    actualizarConexion();
+  }
+}
+function desconectado(){
+  conectado = false; rxc = null; cola.length = 0; estado = -1;
+  actualizarConexion();
+  log('[desconectado]');
+  if (navigator.vibrate) navigator.vibrate([80, 60, 80]);
+}
+function actualizarConexion(){
+  $('dot').classList.toggle('on', conectado);
+  $('btnCon').textContent = conectado ? 'Desconectar' : 'Conectar';
+  $('btnCon').classList.toggle('primario', !conectado);
+  actualizarBotones();
+}
+$('btnCon').addEventListener('click', () => {
+  if (conectado && dev) dev.gatt.disconnect(); else conectar();
+});
+
+// Heartbeat: si el robot arrancó desde aquí y deja de recibir esto, se detiene solo
+setInterval(() => { if (conectado && cola.length < 3) enviar('hb'); }, 250);
+
+let wakeLock = null;
+async function pedirPantallaEncendida(){
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (_){}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && conectado) pedirPantallaEncendida();
+});
+
+// ---------- Recepción ----------
+function recibir(dv){
+  bufTxt += dec.decode(dv, {stream:true});
+  let i;
+  while ((i = bufTxt.indexOf('\n')) >= 0){
+    const linea = bufTxt.slice(0, i).trim();
+    bufTxt = bufTxt.slice(i + 1);
+    if (linea) procesar(linea);
+  }
+}
+function procesar(l){
+  const p = l.split(',');
+  if (p[0] === 'T' && p.length === 7) return telemetria(+p[1], p[2] === '1', +p[3], +p[4], +p[5], +p[6]);
+  if (p[0] === 'S' && p.length === 17) return sensores(p.slice(1).map(Number));
+  if (p[0] === 'P' && p.length === 14) return params(p.slice(1).map(Number));
+  if (p[0] === 'L' && p.length === 3) return ledsEstado(+p[1], +p[2]);
+  log(l);
+}
+function telemetria(est, linea, pos, u, pi, pd){
+  if (est !== estado){ estado = est; actualizarBotones(); }
+  const chip = $('chipEstado');
+  chip.textContent = ESTADOS[est] ?? '?';
+  chip.className = 'chip' + (est === 5 ? ' carrera' : (est === 4 || est === 6) ? ' go' : '');
+  const cl = $('chipLinea');
+  cl.textContent = linea ? 'línea OK' : 'sin línea';
+  cl.className = 'chip' + (linea ? '' : ' perdida');
+  const m = $('marca');
+  m.style.left = (50 - Math.max(-10, Math.min(10, pos)) * 5) + '%';   // pos > 0 = línea a la izquierda
+  m.classList.toggle('perdida', !linea);
+  $('posNum').textContent = (pos >= 0 ? '+' : '') + pos.toFixed(2) + (Math.abs(pos) < 0.3 ? '' : pos > 0 ? '  izq' : '  der');
+  $('txtU').textContent = 'u ' + u.toFixed(0);
+  $('txtPwm').textContent = `izq ${pi} · der ${pd}`;
+  hist.push({t: performance.now(), pos, linea});
+  dibujar = true;
+}
+function sensores(v){
+  [...sens.children].forEach((d, i) => {
+    d.style.height = Math.max(2, v[i]) + '%';
+    d.classList.toggle('alto', v[i] >= 40);
+  });
+}
+function params(v){
+  const o = {};
+  ORDEN_P.forEach((k, i) => o[k] = v[i]);
+  for (const k in ctrl){
+    const c = ctrl[k];
+    if (o[k] === undefined) continue;
+    if (c.pend !== null && Math.abs(c.pend - o[k]) < 1e-3){ c.pend = null; c.inp.classList.remove('pend'); }
+    if (!c.editando && c.pend === null) c.inp.value = o[k];
+  }
+  marcarLinea(o.linea);
+  calOk = o.cal === 1;
+  if (!calOk) mostrarAviso('El robot no tiene calibración válida: arma el ESC y calibra.');
+  else ocultarAviso();
+}
+
+// ---------- Gráfica de posición (últimos 6 s) ----------
+const graf = $('graf'), g = graf.getContext('2d');
+let dibujar = true;
+function cuadro(){
+  if (dibujar){
+    dibujar = false;
+    const dpr = window.devicePixelRatio || 1;
+    const W = graf.clientWidth * dpr, H = graf.clientHeight * dpr;
+    if (graf.width !== W || graf.height !== H){ graf.width = W; graf.height = H; }
+    const ahora = performance.now(), ventana = 6000;
+    while (hist.length && ahora - hist[0].t > ventana) hist.shift();
+    g.clearRect(0, 0, W, H);
+    g.strokeStyle = '#2c333d'; g.lineWidth = dpr;
+    [-7.5, 0, 7.5].forEach(y => { const yy = H / 2 - y / 10 * (H / 2 - 4 * dpr);
+      g.beginPath(); g.moveTo(0, yy); g.lineTo(W, yy); g.stroke(); });
+    g.lineWidth = 2 * dpr;
+    for (let i = 1; i < hist.length; i++){
+      const a = hist[i - 1], b = hist[i];
+      g.strokeStyle = b.linea ? '#3ddc97' : '#ff4d4d';
+      const x = h => W - (ahora - h.t) / ventana * W;
+      const y = h => H / 2 + Math.max(-10, Math.min(10, h.pos)) / 10 * (H / 2 - 4 * dpr);
+      g.beginPath(); g.moveTo(x(a), y(a)); g.lineTo(x(b), y(b)); g.stroke();
+    }
+  }
+  requestAnimationFrame(cuadro);
+}
+requestAnimationFrame(cuadro);
+setInterval(() => dibujar = true, 100);
+
+// ---------- GO (mantener) / STOP ----------
+const btnGo = $('btnGo'), relleno = $('goRelleno');
+let tGo = null, rafGo = null;
+const T_MANTENER = 700;
+function goInicio(e){
+  if (btnGo.disabled) return;
+  e.preventDefault();
+  tGo = performance.now();
+  const paso = () => {
+    const f = Math.min(1, (performance.now() - tGo) / T_MANTENER);
+    relleno.style.width = (f * 100) + '%';
+    if (f >= 1){ goFin(); enviar('go', true); if (navigator.vibrate) navigator.vibrate(60); return; }
+    rafGo = requestAnimationFrame(paso);
+  };
+  rafGo = requestAnimationFrame(paso);
+}
+function goFin(){ cancelAnimationFrame(rafGo); tGo = null; relleno.style.width = '0'; }
+btnGo.addEventListener('pointerdown', goInicio);
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btnGo.addEventListener(ev, goFin));
+
+$('btnStop').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  enviar('stop', true);
+  if (navigator.vibrate) navigator.vibrate(120);
+});
+
+$('btnArm').addEventListener('click', () => enviar('arm'));
+$('btnGuardar').addEventListener('click', () => enviar('guardar'));
+$('btnCal').addEventListener('click', () => {
+  if (confirm('El robot va a girar sobre la línea para calibrar. ¿Continuar?')) enviar('cal');
+});
+$('btnVer').addEventListener('click', () => enviar('ver'));
+$('btnLimpiar').addEventListener('click', () => $('log').textContent = '');
+function enviarTxt(){ const t = $('txtCmd').value.trim(); if (t){ enviar(t); log('> ' + t); $('txtCmd').value = ''; } }
+$('btnCmd').addEventListener('click', enviarTxt);
+$('txtCmd').addEventListener('keydown', e => { if (e.key === 'Enter') enviarTxt(); });
+
+function actualizarBotones(){
+  const detenido = conectado && (estado === 2 || estado === 3 || estado === 0);
+  btnGo.disabled = !(conectado && (estado === 2 || estado === 3));
+  $('btnStop').disabled = !conectado;
+  $('btnArm').style.display = (conectado && estado === 0) ? '' : 'none';
+  document.querySelectorAll('#leds button, #tab-leds .acciones button').forEach(b => b.disabled = !conectado);
+  ['btnGuardar', 'btnCal', 'btnVer'].forEach(id => $(id).disabled = !detenido || (id === 'btnCal' && estado === 0));
+}
+
+// ---------- Pestañas ----------
+document.querySelectorAll('#tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('sel', x === b));
+  document.querySelectorAll('.pestana').forEach(p => p.classList.toggle('sel', p.id === 'tab-' + b.dataset.tab));
+}));
+
+// ---------- LEDs ----------
+const NOMBRES_LED = ['LED1', 'LED2', 'LED3', 'LED4', 'Barra'];
+const MODOS_LED = ['automático (estado del robot)', 'manual', 'secuencia'];
+let ledMask = 0;
+NOMBRES_LED.forEach((n, k) => {
+  const b = document.createElement('button');
+  b.className = 'led';
+  b.innerHTML = `<div class="foco"></div><span>${n}</span>`;
+  b.addEventListener('click', () => {
+    ledMask ^= (1 << k);
+    ledsEstado(ledMask, 1);
+    enviar('led ' + ledMask, false, 'led');
+  });
+  $('leds').appendChild(b);
+});
+function ledsEstado(mask, modo){
+  ledMask = mask;
+  [...$('leds').children].forEach((b, k) => b.classList.toggle('on', !!((mask >> k) & 1)));
+  $('modoLed').textContent = 'Modo: ' + (MODOS_LED[modo] ?? '—');
+}
+$('ledAuto').addEventListener('click', () => enviar('led a', false, 'led'));
+$('ledSec').addEventListener('click', () => enviar('led s', false, 'led'));
+$('ledTodos').addEventListener('click', () => { ledsEstado(31, 1); enviar('led 31', false, 'led'); });
+$('ledApagar').addEventListener('click', () => { ledsEstado(0, 1); enviar('led 0', false, 'led'); });
+
+// ---------- Utilidades ----------
+function log(t){
+  const el = $('log');
+  el.textContent += t + '\n';
+  const l = el.textContent.split('\n');
+  if (l.length > 120) el.textContent = l.slice(-120).join('\n');
+  el.scrollTop = el.scrollHeight;
+}
+function mostrarAviso(t){ const a = $('aviso'); a.textContent = t; a.style.display = 'block'; }
+function ocultarAviso(){ $('aviso').style.display = 'none'; }
+
+if (!navigator.bluetooth) mostrarAviso('Web Bluetooth no disponible: abre esta página en Chrome para Android, desde una dirección https://');
+actualizarConexion();
+</script>
+</body>
+</html>
